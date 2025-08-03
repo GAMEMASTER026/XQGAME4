@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线中国象棋</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessboard-xiangqi-es@1.0.1/dist/chessboard-xiangqi-es.css">
+    <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chessboard-xiangqi-es@1.0.1/dist/chessboard-xiangqi-es.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #c43c2e; /* 中国红 */
+            --secondary-color: #d9b382; /* 传统米色 */
+            --dark-bg: #2a211c; /* 深木色 */
+            --light-bg: #f5f0e5; /* 浅米色 */
+            --board-bg: #e6c99c; /* 棋盘色 */
+            --border-color: #8c5e3c; /* 木边框色 */
+            --text-dark: #3c2a1e; /* 深褐色文字 */
+            --text-light: #f8f3e6; /* 浅米色文字 */
+            --shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            --transition: all 0.3s ease;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', 'Heiti SC', 'SimSun', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #d9b382 0%, #8c5e3c 100%);
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%238c5e3c" opacity="0.1"/><path d="M0,0 Q50,10 100,0 T100,100 Q50,90 0,100 T0,0 Z" fill="%23d9b382" opacity="0.1"/></svg>');
+            color: var(--text-dark);
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+        .container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+            justify-content: center;
+            max-width: 1200px;
+            width: 100%;
+            margin-top: 80px;
+        }
+        header {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+        }
+        .game-title {
+            color: white;
+            font-size: 2.8rem;
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            letter-spacing: 4px;
+        }
+        .board-container {
+            background: var(--dark-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 3px solid var(--border-color);
+            flex: 1;
+            min-width: 320px;
+            max-width: 600px;
+            position: relative;
+        }
+        
+        #board {
+            width: 100%;
+        }
+        
+        .controls-panel {
+            background: var(--dark-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 3px solid var(--border-color);
+            flex: 0 0 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .panel-header {
+            color: var(--text-light);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            padding-bottom: 15px;
+            font-weight: 600;
+            position: relative;
+            text-align: center;
+        }
+        .panel-header:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: var(--primary-color);
+            border-radius: 3px;
+        }
+        
+        .info-box {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+            color: var(--text-light);
+        }
+        #player-info {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            min-height: 24px;
+        }
+        
+        #status {
+            color: var(--secondary-color);
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-height: 24px;
+        }
+        #room-id-display {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            word-break: break-all;
+            position: relative;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background-color 0.2s ease;
+        }
+        #room-id-display:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        #copy-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-light);
+            opacity: 0.8;
+        }
+        
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        button {
+            padding: 14px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        #create-room-btn, #join-room-btn, #restart-btn, #leave-btn, #undo-btn {
+            color: white;
+        }
+        #create-room-btn { background: linear-gradient(to bottom, var(--primary-color), #a33025); }
+        #create-room-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #d14535, #8a2920); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(196, 60, 46, 0.4); }
+        
+        #join-room-btn { background: linear-gradient(to bottom, #388e3c, #2e7d32); }
+        #join-room-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #4caf50, #388e3c); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(56, 142, 60, 0.4); }
+        
+        #restart-btn { background: linear-gradient(to bottom, #ff9800, #f57c00); }
+        #restart-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #ffa726, #fb8c00); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4); }
+        #leave-btn { background: linear-gradient(to bottom, #f44336, #d32f2f); }
+        #leave-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #ef5350, #e53935); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4); }
+        #undo-btn { background: linear-gradient(to bottom, #6c757d, #5a6268); }
+        #undo-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #868e96, #6c757d); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4); }
+        button:disabled {
+            background: #9e9e9e;
+            cursor: not-allowed;
+            opacity: 0.7;
+            transform: none;
+            box-shadow: none;
+        }
+        input {
+            width: 100%;
+            padding: 14px;
+            margin: 8px 0;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1.1rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        input::placeholder { color: #bbb; }
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(196, 60, 46, 0.3);
+        }
+        
+        .input-hint {
+            color: #bbb;
+            font-size: 0.85rem;
+            text-align: right;
+            margin-top: -5px;
+            margin-bottom: 10px;
+        }
+        .hidden { display: none !important; }
+        .loading {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translate(-50%, 10px);
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        .loader.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .loader-content {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+        
+        .loader-spinner {
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 5px solid var(--primary-color);
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        .player-color {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            vertical-align: middle;
+            margin: 0 5px;
+        }
+        .red-player { background: #c43c2e; border: 1px solid #ff7b7b; }
+        .black-player { background: #333; border: 1px solid #888; }
+        
+        @media (max-width: 900px) {
+            .container { flex-direction: column; align-items: center; margin-top: 20px; }
+            .controls-panel, .board-container { width: 100%; max-width: 500px; }
+            header { position: relative; top: 0; margin-bottom: 20px; }
+            .game-title { font-size: 2.2rem; }
+        }
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            .controls-panel { padding: 15px; }
+            .panel-header { font-size: 1.5rem; }
+            button, input { padding: 12px; font-size: 1rem; }
+            .game-title { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 class="game-title">中国象棋</h1>
+    </header>
+    
+    <div class="container">
+        <div class="board-container">
+            <div id="board"></div>
+            <div class="loader" id="board-loader">
+                <div class="loader-content">
+                    <div class="loader-spinner"></div>
+                    <p id="loader-text">加载中...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls-panel">
+            <h2 class="panel-header">游戏控制</h2>
+            
+            <div class="info-box">
+                <div id="player-info">欢迎来到在线中国象棋</div>
+                <div id="status">正在连接信令服务器...</div>
+            </div>
+            
+            <div id="room-controls">
+                <div class="btn-group">
+                    <button id="create-room-btn" disabled>
+                        <span id="create-loading" class="loading hidden"></span>
+                        <i class="fas fa-plus-circle"></i> 创建房间
+                    </button>
+                    
+                    <div id="room-id-display" class="hidden">
+                        房间码：<span id="room-id"></span>
+                        <i id="copy-icon" class="fas fa-copy"></i>
+                    </div>
+                    
+                    <div id="join-controls">
+                        <input type="text" id="room-id-input" placeholder="粘贴房间码" maxlength="15" autocapitalize="off" autocorrect="off" spellcheck="false" disabled>
+                         <div class="input-hint">
+                            <span id="input-length">0/15</span>
+                        </div>
+                        <button id="join-room-btn" disabled>
+                             <span id="join-loading" class="loading hidden"></span>
+                            <i class="fas fa-sign-in-alt"></i> 加入房间
+                        </button>
+                    </div>
+                                       
+                    <div class="game-controls hidden" id="game-controls">
+                        <button id="restart-btn" disabled>
+                             <i class="fas fa-redo"></i> 请求重开
+                        </button>
+                        <button id="undo-btn" disabled>
+                            <i class="fas fa-undo"></i> 请求悔棋
+                        </button>
+                         <button id="leave-btn">
+                           <i class="fas fa-sign-out-alt"></i> 退出房间
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        const ui = {
+            playerInfo: document.getElementById('player-info'),
+            status: document.getElementById('status'),
+            roomIdDisplay: document.getElementById('room-id-display'),
+            roomIdInput: document.getElementById('room-id-input'),
+            roomId: document.getElementById('room-id'),
+            createBtn: document.getElementById('create-room-btn'),
+            joinBtn: document.getElementById('join-room-btn'),
+            restartBtn: document.getElementById('restart-btn'),
+            undoBtn: document.getElementById('undo-btn'),
+            leaveBtn: document.getElementById('leave-btn'),
+            createLoading: document.getElementById('create-loading'),
+            joinLoading: document.getElementById('join-loading'),
+            gameControls: document.getElementById('game-controls'),
+            toast: document.getElementById('toast'),
+            inputLength: document.getElementById('input-length'),
+            boardLoader: document.getElementById('board-loader'),
+            loaderText: document.getElementById('loader-text'),
+            joinControls: document.getElementById('join-controls'),
+        };
+
+        const gameState = {
+            ably: null,
+            channel: null,
+            game: null,
+            board: null,
+            playerColor: '',
+            isMyTurn: false,
+            gameStarted: false,
+            myClientId: 'client-' + Math.random().toString(36).substring(2, 9),
+        };
+
+        // 重要提示：请在此处填入您自己的 Ably API 密钥
+        // 您可以访问 https://ably.com/signup 免费注册并获取密钥
+        const ABLY_API_KEY = 'nc5NGw.wSmsXg:SMs5pD5aJ4hGMvNZnd7pJp2lYS2X1iCmWm_yeLx_pkk';
+
+        function showLoader(message) {
+            ui.loaderText.textContent = message;
+            ui.boardLoader.classList.add('active');
+        }
+        
+        function hideLoader() {
+            ui.boardLoader.classList.remove('active');
+        }
+
+        function showToast(message, type = 'info') {
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            ui.toast.innerHTML = `<i class="fas ${icons[type]}"></i> ${message}`;
+            ui.toast.className = 'toast show';
+            
+            setTimeout(() => {
+                ui.toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function copyRoomId() {
+            const roomIdText = ui.roomId.textContent.trim();
+            if (!roomIdText) return;
+            navigator.clipboard.writeText(roomIdText).then(() => {
+                showToast('房间码已复制', 'success');
+            }).catch(err => {
+                showToast('复制失败', 'error');
+            });
+        }
+        
+        function setLobbyControlsDisabled(disabled) {
+            ui.createBtn.disabled = disabled;
+            ui.joinBtn.disabled = disabled;
+            ui.roomIdInput.disabled = disabled;
+        }
+
+        function setGameButtonsDisabled(disabled) {
+            ui.restartBtn.disabled = disabled;
+            ui.undoBtn.disabled = disabled;
+            ui.leaveBtn.disabled = disabled;
+        }
+
+        function resetToLobby() {
+            setLobbyControlsDisabled(false);
+            ui.createLoading.classList.add('hidden');
+            ui.joinLoading.classList.add('hidden');
+            ui.gameControls.classList.add('hidden');
+            ui.roomIdDisplay.classList.add('hidden');
+            ui.joinControls.classList.remove('hidden');
+            ui.playerInfo.textContent = '欢迎来到在线中国象棋';
+            ui.status.textContent = '请创建或加入房间';
+
+            if (gameState.board) { 
+                gameState.board.destroy(); 
+                gameState.board = null;
+                document.getElementById('board').innerHTML = '';
+            }
+            gameState.game = null;
+            gameState.playerColor = '';
+            gameState.isMyTurn = false;
+            gameState.gameStarted = false;
+            hideLoader();
+        }
+
+        function handleOpponentLeave() {
+            if (!gameState.gameStarted) return;
+            showToast('对手已断开连接', 'warning');
+            ui.status.textContent = '对手已退出房间';
+            ui.playerInfo.textContent = '游戏结束';
+            gameState.isMyTurn = false;
+            gameState.gameStarted = false;
+            setGameButtonsDisabled(true);
+            ui.leaveBtn.disabled = false;
+        }
+
+        function subscribeToChannelEvents() {
+            gameState.channel.presence.subscribe(['enter', 'leave'], () => {
+                updatePresence();
+            });
+
+            gameState.channel.subscribe(message => {
+                if (message.clientId === gameState.myClientId) return;
+
+                const data = message.data;
+                switch(data.type) {
+                    case 'move':
+                        gameState.game.move(data.move);
+                        gameState.board.position(gameState.game.fen());
+                        gameState.isMyTurn = true;
+                        updateStatus();
+                        break;
+                    case 'restart_request':
+                        if (confirm('对方请求重新开始游戏，是否同意？')) {
+                            gameState.channel.publish({ name: 'restart_accept', data: { type: 'restart_accept' }});
+                            resetGame(false);
+                        }
+                        break;
+                    case 'restart_accept':
+                        showToast('对方已同意重开', 'success');
+                        resetGame(true);
+                        break;
+                    case 'undo_request':
+                        if (gameState.isMyTurn && confirm('对方请求悔棋，是否同意？')) {
+                           gameState.channel.publish({ name: 'undo_accept', data: { type: 'undo_accept' }});
+                           gameState.game.undo();
+                           gameState.board.position(gameState.game.fen());
+                           updateStatus();
+                        }
+                        break;
+                    case 'undo_accept':
+                        showToast('对方同意了你的悔棋请求', 'success');
+                        gameState.game.undo();
+                        gameState.board.position(gameState.game.fen());
+                        gameState.isMyTurn = true;
+                        updateStatus();
+                        break;
+                }
+            });
+        }
+
+        function updatePresence() {
+            gameState.channel.presence.get((err, members) => {
+                if (err) {
+                    console.error("获取在线状态失败:", err);
+                    return;
+                }
+
+                if (members.length === 2 && !gameState.gameStarted) {
+                    gameState.gameStarted = true;
+                    setGameButtonsDisabled(false);
+                    if (gameState.playerColor === 'w') {
+                        ui.status.textContent = '对手已加入，红方先行！';
+                        showToast('对手已加入，游戏开始！', 'success');
+                    } else {
+                        ui.status.textContent = '连接成功，等待红方走棋...';
+                    }
+                    ui.gameControls.classList.remove('hidden');
+                    setLobbyControlsDisabled(true);
+                    ui.joinControls.classList.add('hidden');
+                } else if (members.length < 2 && gameState.gameStarted) {
+                    handleOpponentLeave();
+                }
+            });
+        }
+        
+        function createRoom() {
+            setLobbyControlsDisabled(true);
+            ui.createLoading.classList.remove('hidden');
+            ui.status.textContent = '正在创建房间...';
+            showLoader('正在创建房间...');
+
+            const roomId = `xq-room-${Math.random().toString(36).substr(2, 6)}`;
+            gameState.channel = gameState.ably.channels.get(roomId);
+
+            gameState.channel.presence.enter(null, (err) => {
+                 if (err) {
+                    showToast(`创建房间失败: ${err.message}`, 'error');
+                    resetToLobby();
+                    hideLoader();
+                    return;
+                 }
+                subscribeToChannelEvents();
+
+                ui.roomId.textContent = roomId;
+                ui.roomIdDisplay.classList.remove('hidden');
+                ui.playerInfo.innerHTML = '你是<span class="player-color red-player"></span>红方, 等待对手加入...';
+                ui.status.textContent = '等待对手连接...';
+                ui.createLoading.classList.add('hidden');
+                ui.joinControls.classList.add('hidden');
+                
+                initializeGame('w', true);
+                hideLoader();
+                showToast('房间创建成功！', 'success');
+            });
+        }
+
+        function joinRoom() {
+            let roomId = ui.roomIdInput.value.trim();
+            if (!roomId) {
+                showToast('请输入有效的房间码', 'warning');
+                return;
+            }
+            
+            setLobbyControlsDisabled(true);
+            ui.joinLoading.classList.remove('hidden');
+            ui.status.textContent = '正在连接房间...';
+            showLoader('正在加入房间...');
+
+            gameState.channel = gameState.ably.channels.get(roomId);
+
+            gameState.channel.presence.get((err, members) => {
+                if (err || members.length === 0) {
+                     showToast('房间不存在或已过期', 'error');
+                     resetToLobby();
+                     hideLoader();
+                     return;
+                }
+                if (members.length >= 2) {
+                    showToast('房间已满', 'error');
+                    resetToLobby();
+                    hideLoader();
+                    return;
+                }
+
+                gameState.channel.presence.enter(null, (err) => {
+                    if (err) {
+                        showToast(`加入房间失败: ${err.message}`, 'error');
+                        resetToLobby();
+                        hideLoader();
+                        return;
+                    }
+                    subscribeToChannelEvents();
+                    initializeGame('b', false);
+                    ui.playerInfo.innerHTML = '你是<span class="player-color black-player"></span>黑方';
+                    ui.joinLoading.classList.add('hidden');
+                    hideLoader();
+                    showToast('成功加入房间！', 'success');
+                });
+            });
+        }
+
+        function initializeGame(color, myTurn) {
+            try {
+                gameState.playerColor = color;
+                gameState.isMyTurn = myTurn;
+                
+                if (gameState.board) gameState.board.destroy();
+                document.getElementById('board').innerHTML = '';
+                
+                gameState.game = new Xiangqi();
+                
+                const config = {
+                    pieceTheme: 'https://cdn.jsdelivr.net/npm/chessboard-xiangqi-es@1.0.1/dist/img/pieces/traditional/{piece}.svg',
+                    position: 'start',
+                    orientation: color === 'w' ? 'red' : 'black',
+                    draggable: true,
+                    onDragStart: onDragStart,
+                    onDrop: onDrop,
+                };
+                
+                gameState.board = XiangqiBoard('board', config);
+                updateStatus();
+                
+                setTimeout(() => {
+                    if (gameState.board) gameState.board.resize();
+                }, 100);
+                
+            } catch (error) {
+                console.error('初始化棋盘失败:', error);
+                showToast('棋盘初始化失败，请重试', 'error');
+                hideLoader();
+            }
+        }
+        
+        function onDragStart(source, piece) {
+            return gameState.isMyTurn && gameState.gameStarted && !gameState.game.game_over() && piece.charAt(0) === gameState.playerColor;
+        }
+        
+        function onDrop(source, target) {
+            const moveData = { from: source, to: target };
+            const move = gameState.game.move(moveData);
+
+            if (move === null) return 'snapback';
+            
+            gameState.isMyTurn = false;
+            updateStatus();
+
+            if (gameState.channel) {
+                gameState.channel.publish({ name: 'move', data: { type: 'move', move: moveData } });
+            }
+        }
+        
+        function updateStatus() {
+            if (!gameState.game) return;
+            const moveColor = gameState.game.turn() === 'w' ? '红方' : '黑方';
+            let statusText = '';
+            
+            if (gameState.game.game_over()) {
+                setGameButtonsDisabled(true);
+                ui.leaveBtn.disabled = false;
+                if (gameState.game.in_checkmate()) {
+                    statusText = `游戏结束, ${moveColor}被将死！`;
+                } else if (gameState.game.in_draw()) {
+                    statusText = '游戏结束, 平局！';
+                }
+            } else {
+                statusText = gameState.isMyTurn ? `轮到你走棋 (${moveColor})` : `等待对方 (${moveColor}) 走棋...`;
+                if(gameState.game.in_check()) {
+                    statusText += ' (将军!)';
+                }
+            }
+            ui.status.textContent = statusText;
+        }
+        
+        function requestRestart() {
+            if (!gameState.channel || !gameState.gameStarted) { 
+                showToast('未连接到对手', 'error'); 
+                return; 
+            }
+            if(confirm("确定要向对方发送重开请求吗？")){
+                gameState.channel.publish({ name: 'restart_request', data: { type: 'restart_request' }});
+                showToast('已发送重开请求', 'info');
+            }
+        }
+        
+        function resetGame(isMyTurn) {
+            initializeGame(gameState.playerColor, isMyTurn);
+            ui.status.textContent = isMyTurn ? '游戏重开, 轮到你走棋' : '游戏重开, 等待对方走棋';
+            showToast('游戏已重置', 'success');
+        }
+        
+        function requestUndo() {
+            if (!gameState.channel || !gameState.gameStarted) { 
+                showToast('未连接到对手', 'error'); 
+                return; 
+            }
+            if (gameState.isMyTurn) {
+                showToast('当前是你的回合，不能悔棋', 'warning');
+                return;
+            }
+             if (gameState.game.history().length === 0) {
+                showToast('没有可悔的棋步', 'warning');
+                return;
+            }
+            gameState.channel.publish({ name: 'undo_request', data: { type: 'undo_request' }});
+            showToast('已发送悔棋请求', 'info');
+        }
+        
+        function leaveRoom() {
+            if (gameState.channel) {
+                gameState.channel.presence.leave();
+                gameState.channel.detach();
+                gameState.channel = null;
+            }
+            resetToLobby();
+            showToast('您已退出房间', 'success');
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            if (ABLY_API_KEY === 'YOUR_ABLY_API_KEY_HERE') {
+                 showToast('请先设置Ably API密钥', 'error');
+                 ui.status.textContent = '配置错误: Ably API密钥未设置';
+                 return;
+            }
+
+            gameState.ably = new Ably.Realtime({ key: ABLY_API_KEY, clientId: gameState.myClientId });
+
+            gameState.ably.connection.on('connected', () => {
+                showToast('信令服务器连接成功!', 'success');
+                ui.status.textContent = '请创建或加入房间';
+                setLobbyControlsDisabled(false);
+            });
+
+            gameState.ably.connection.on('failed', (error) => {
+                showToast(`信令服务器连接失败: ${error.reason}`, 'error');
+                ui.status.textContent = '连接失败，请刷新页面重试';
+                setLobbyControlsDisabled(true);
+            });
+            
+            ui.createBtn.addEventListener('click', createRoom);
+            ui.joinBtn.addEventListener('click', joinRoom);
+            ui.restartBtn.addEventListener('click', requestRestart);
+            ui.undoBtn.addEventListener('click', requestUndo);
+            ui.leaveBtn.addEventListener('click', leaveRoom);
+            ui.roomIdDisplay.addEventListener('click', copyRoomId);
+            
+            ui.roomIdInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^a-zA-Z0-9-]/g, '');
+                ui.inputLength.textContent = `${this.value.length}/${this.maxLength}`;
+            });
+            
+            window.addEventListener('beforeunload', () => {
+                if (gameState.channel) { 
+                    gameState.channel.presence.leave();
+                }
+            });
+            
+            window.addEventListener('resize', () => {
+                if (gameState.board) {
+                    gameState.board.resize();
+                }
+            });
+
+            resetToLobby();
+        });
+    </script>
+</body>
+</html>
+
